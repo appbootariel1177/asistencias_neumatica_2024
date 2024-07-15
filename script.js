@@ -1,79 +1,72 @@
-async function loadSheetData() {
-  try {
-    const response = await fetch('https://script.google.com/macros/s/AKfycby46wk3ITow4k4UmJPVsm4Z9spHtly2cPthWDYJAW70HV7gfTLP1gezPdKiDndaFfzg/exec');
-    const data = await response.json();
-    renderTable(data);
-  } catch (error) {
-    console.error('Error al cargar los datos:', error);
-  }
-}
+document.addEventListener('DOMContentLoaded', function () {
+    const sheetId = '18HU5JRHomhDoOXFxzF35EdOEID-cE1hc714zSG3rQ9c';
+    const base = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?`;
+    const sheetName = 'Hoja 1';
+    const query = encodeURIComponent('Select *');
+    const url = `${base}&sheet=${sheetName}&tq=${query}`;
+    const dataTable = document.getElementById('dataTable');
+    const tableHeaders = document.getElementById('tableHeaders');
+    const tableBody = document.getElementById('tableBody');
+    const searchInput = document.getElementById('searchInput');
+    const downloadPdf = document.getElementById('downloadPdf');
 
-function renderTable(data) {
-  const sheetDataDiv = document.getElementById('sheetData');
-  sheetDataDiv.innerHTML = '';
+    fetch(url)
+        .then(res => res.text())
+        .then(rep => {
+            const data = JSON.parse(rep.substring(47).slice(0, -2));
+            const headers = data.table.cols.map(col => col.label);
+            const rows = data.table.rows.map(row => row.c.map(cell => (cell ? cell.v : '')));
 
-  const table = document.createElement('table');
-  const tbody = document.createElement('tbody');
+            // Asegurar que el primer elemento de 'rows' es el encabezado
+            const headersRow = rows.shift(); // Remover la primera fila y almacenarla como encabezados
 
-  data.forEach((row, index) => {
-    const tr = document.createElement('tr');
+            // Agregar encabezados de columna fijos
+            headersRow.forEach((header) => {
+                const th = document.createElement('th');
+                th.innerText = header;
+                tableHeaders.appendChild(th);
+            });
 
-    if (index === 0) {
-      tr.classList.add('header-row');
-    }
+            // Agregar filas a la tabla
+            rows.forEach(row => {
+                const tr = document.createElement('tr');
+                row.forEach((cell, index) => {
+                    const td = document.createElement('td');
+                    td.innerText = cell;
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+            });
 
-    row.forEach((cell, cellIndex) => {
-      const td = document.createElement('td');
-      td.textContent = cell;
+            // Funcionalidad de filtrado
+            searchInput.addEventListener('keyup', function () {
+                const filter = searchInput.value.toLowerCase();
+                const trs = tableBody.getElementsByTagName('tr');
+                for (let i = 0; i < trs.length; i++) {
+                    const tds = trs[i].getElementsByTagName('td');
+                    let showRow = false;
+                    for (let j = 0; j < tds.length; j++) {
+                        if (tds[j].innerText.toLowerCase().indexOf(filter) > -1) {
+                            showRow = true;
+                            break;
+                        }
+                    }
+                    trs[i].style.display = showRow ? '' : 'none';
+                }
+            });
 
-      if (cellIndex > 0 && (cell.toLowerCase() === 'presente' || cell.toLowerCase() === 'ausente')) {
-        td.classList.add(cell.toLowerCase());
-      }
-
-      tr.appendChild(td);
-    });
-
-    tbody.appendChild(tr);
-  });
-
-  table.appendChild(tbody);
-  sheetDataDiv.appendChild(table);
-
-  const filterInput = document.createElement('input');
-  filterInput.type = 'text';
-  filterInput.placeholder = 'Filtrar por nombre de empresa';
-  filterInput.classList.add('filter-input');
-
-  filterInput.addEventListener('input', function() {
-    const filterValue = this.value.toLowerCase();
-    tbody.childNodes.forEach(tr => {
-      const empresaCell = tr.childNodes[1];
-      if (empresaCell.textContent.toLowerCase().includes(filterValue)) {
-        tr.style.display = '';
-      } else {
-        tr.style.display = 'none';
-      }
-    });
-  });
-
-  sheetDataDiv.insertBefore(filterInput, table);
-}
-
-function shareVisibleData() {
-  const visibleRows = Array.from(document.querySelectorAll('tbody tr')).filter(tr => tr.style.display !== 'none');
-  let tableContent = '<table>';
-  visibleRows.forEach(row => {
-    tableContent += '<tr>';
-    Array.from(row.childNodes).forEach(cell => {
-      tableContent += `<td>${cell.textContent}</td>`;
-    });
-    tableContent += '</tr>';
-  });
-  tableContent += '</table>';
-
-  const mailtoLink = `mailto:?subject=Datos filtrados&body=${encodeURIComponent(tableContent)}`;
-  window.location.href = mailtoLink;
-}
-
-document.addEventListener('DOMContentLoaded', loadSheetData);
-document.getElementById('shareButton').addEventListener('click', shareVisibleData);
+            // Funcionalidad de descarga en PDF
+            downloadPdf.addEventListener('click', function () {
+                const printWindow = window.open('', '', 'height=600,width=800');
+                printWindow.document.write('<html><head><title>Gestion de datos zona D</title>');
+                printWindow.document.write('<link rel="stylesheet" href="styles.css">');
+                printWindow.document.write('</head><body>');
+                printWindow.document.write('<h1>Datos de asistencias  Neumatica M-I 2024</h1>');
+                printWindow.document.write(dataTable.outerHTML);
+                printWindow.document.write('</body></html>');
+                printWindow.document.close();
+                printWindow.print();
+            });
+        })
+        .catch(err => console.error('Error fetching data from Google Sheets:', err));
+});
